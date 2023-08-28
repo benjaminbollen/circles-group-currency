@@ -14,10 +14,11 @@ contract GroupCurrencyToken is ERC20 {
     bool public suspended;
     bool public onlyOwnerCanMint;
     bool public onlyTrustedCanMint;
-    
+
     address public owner; // the safe/EOA/contract that deployed this token, can be changed by owner
     address public hub; // the address of the hub this token is associated with
     address public treasury; // account which gets the personal tokens for whatever later usage
+    address public discriminator;
 
     uint public counter;
     mapping (uint => address) public delegatedTrustees;
@@ -38,7 +39,8 @@ contract GroupCurrencyToken is ERC20 {
         _;
     }
 
-    constructor(address _hub, address _treasury, address _owner, uint8 _mintFeePerThousand, string memory _name, string memory _symbol) ERC20(_name, _symbol) {
+    constructor(address _discriminator, address _hub, address _treasury, address _owner, uint8 _mintFeePerThousand, string memory _name, string memory _symbol) ERC20(_name, _symbol) {
+        discriminator = _discriminator;
         owner = _owner;
         hub = _hub;
         treasury = _treasury;
