@@ -19,9 +19,6 @@ contract GroupCurrencyToken is ERC20 {
     address public hub; // the address of the hub this token is associated with
     address public treasury; // account which gets the personal tokens for whatever later usage
     address public discriminator;
-
-    uint public counter;
-    mapping (uint => address) public delegatedTrustees;
     
     event Minted(address indexed _receiver, uint256 _amount, uint256 _mintAmount, uint256 _mintFee);
     event Suspended(address indexed _owner);
@@ -30,8 +27,6 @@ contract GroupCurrencyToken is ERC20 {
     event OnlyTrustedCanMint(bool indexed _onlyTrustedCanMint);
     event MemberTokenAdded(address indexed _memberToken);
     event MemberTokenRemoved(address indexed _memberToken);
-    event DelegatedTrusteeAdded(address indexed _delegatedTrustee);
-    event DelegatedTrusteeRemoved(address indexed _delegatedTrustee);
 
     /// @dev modifier allowing function to be only called by the token owner
     modifier onlyOwner() {
@@ -80,18 +75,6 @@ contract GroupCurrencyToken is ERC20 {
         emit MemberTokenRemoved(memberTokenUser);
     }
 
-    function addDelegatedTrustee(address _account) external onlyOwner {
-        delegatedTrustees[counter] = _account;
-        counter++;
-        emit DelegatedTrusteeAdded(_account);
-    }
-
-    function removeDelegatedTrustee(uint _index) external onlyOwner {
-        address delegatedTrustee = delegatedTrustees[_index];
-        delegatedTrustees[_index] = address(0);
-        emit DelegatedTrusteeRemoved(delegatedTrustee);
-    }
-
     // Group currently is created from collateral tokens, which have to be transferred to this Token before.
     // Note: This function is not restricted, so anybody can mint with the collateral Token! The function call must be transactional to be safe.
     function mint(address[] calldata _collateral, uint256[] calldata _amount) external returns (uint256) {
@@ -107,23 +90,6 @@ contract GroupCurrencyToken is ERC20 {
             mintedAmount += _mintGroupCurrencyTokenForCollateral(_collateral[i], _amount[i]);
         }
         return mintedAmount;
-    }
-
-    // Trust must be called by this contract (as a delegate) on Hub
-    function delegateTrust(uint _index, address _trustee) external {
-        require(_trustee != address(0), "trustee must be valid address");
-        bool trustedByAnyDelegate = false;
-        // Start with _index to save gas if index is known
-        for (uint i = _index; i < counter; i++) {
-            if (delegatedTrustees[i] != address(0)) {
-                if (IHub(hub).limits(delegatedTrustees[i], _trustee) > 0) {
-                    trustedByAnyDelegate = true;
-                    break;
-                }
-            }
-        }
-        require(trustedByAnyDelegate, "trustee not trusted by any delegate");
-        IHub(hub).trust(_trustee, 100);
     }
 
     function transfer(address _dst, uint256 _wad) public override returns (bool) {

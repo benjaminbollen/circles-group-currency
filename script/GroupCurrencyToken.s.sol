@@ -4,7 +4,9 @@ import "../lib/forge-std/src/Script.sol";
 import "../src/GroupCurrencyTokenFactory.sol";
 import "../src/GroupCurrencyToken.sol";
 import "../src/IHub.sol";
+import "../src/IHub.sol";
 import "../lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import "../src/IGroupMembershipDiscriminator.sol";
 
 
 contract GroupCurrencyTokenDeploy is Script {
@@ -17,7 +19,8 @@ contract GroupCurrencyTokenDeploy is Script {
         vm.recordLogs();
         GroupCurrencyTokenFactory gctf = new GroupCurrencyTokenFactory();
         IHub hub = IHub(0x29b9a7fBb8995b2423a71cC17cf9810798F6C543);
-        gctf.createGroupCurrencyToken(address(hub), 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, 0, "GCT", "GCT");
+        IGroupMembershipDiscriminator discriminator = IGroupMembershipDiscriminator(0x29b9a7fBb8995b2423a71cC17cf9810798F6C543);
+        gctf.createGroupCurrencyToken(address(discriminator), address(hub), 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266, 0, "GCT", "GCT");
         
         Vm.Log[] memory entries = vm.getRecordedLogs();
         address token = address(hub.userToToken(0x249fA3ecD95a53F742707D53688FCafbBd072f33));
