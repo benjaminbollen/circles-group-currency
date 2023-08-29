@@ -20,6 +20,8 @@ contract MockDenyAllDiscriminator is IGroupMembershipDiscriminator {
 }
 
 contract MockAllowArrayDiscriminator is IGroupMembershipDiscriminator {
+    mapping(address=>bool) public members;
+
     constructor(address[] memory _members) {
         for (uint256 i = 0; i < _members.length; i++) {
             members[_members[i]] = true;
