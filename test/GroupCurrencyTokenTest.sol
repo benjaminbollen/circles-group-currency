@@ -34,6 +34,59 @@ contract GroupCurrencyTokenTest is Test {
         assertFalse(gct.onlyTrustedCanMint(), "onlyTrustedCanMint should be false.");
     }
 
+    function testMockAllowList_positiveCase() external {
+        address allowedUser = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
+        address[] memory singleAddressArray = new address[](1);
+        singleAddressArray[0] = allowedUser;
+
+        MockAllowArrayDiscriminator discriminator = new MockAllowArrayDiscriminator(singleAddressArray);
+        assertTrue(discriminator.isMember(address(this), allowedUser), "discriminator.isMember should be true.");
+    }
+
+    function testMockAllowList_negativeCase() external {
+        address allowedUser = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
+        address deniedUser = 0x4324643246432464324643246432464324643246;
+        address[] memory singleAddressArray = new address[](1);
+        singleAddressArray[0] = allowedUser;
+
+        MockAllowArrayDiscriminator discriminator = new MockAllowArrayDiscriminator(singleAddressArray);
+        assertFalse(discriminator.isMember(address(this), deniedUser), "discriminator.isMember should be false.");
+    }
+
+    function testAddMember_AllowList_accept() external {
+        MockHub mockHub = new MockHub();
+        address allowedUser = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
+        address deniedUser = 0x4324643246432464324643246432464324643246;
+
+        address[] memory singleAddressArray = new address[](1);
+        singleAddressArray[0] = allowedUser;
+
+        MockAllowArrayDiscriminator discriminator = new MockAllowArrayDiscriminator(singleAddressArray);
+        GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
+
+        vm.expectEmit(true, true, false, true, address(mockHub));
+        emit Trust(address(gct), allowedUser, 100);
+        vm.expectEmit(true, true, false, true, address(gct));
+        emit MemberAdded(allowedUser);
+
+        gct.addMember(allowedUser);
+    }
+
+    function testAddMember_AllowList_deny() external {
+        MockHub mockHub = new MockHub();
+
+        address allowedUser = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
+        address deniedUser = 0x4324643246432464324643246432464324643246;
+
+        address[] memory singleAddressArray = new address[](1);
+        singleAddressArray[0] = allowedUser;
+
+        MockAllowArrayDiscriminator discriminator = new MockAllowArrayDiscriminator(singleAddressArray);
+        GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
+
+        gct.addMember(deniedUser);
+    }
+
     function testAddMemberEvents() external {
         MockHub mockHub = new MockHub();
         MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
