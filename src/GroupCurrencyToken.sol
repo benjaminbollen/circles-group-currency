@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import "../lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
 import "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+import "./IGroupMembershipDiscriminator.sol";
 import "./IHub.sol";
 
 contract GroupCurrencyToken is ERC20 {
@@ -35,7 +36,7 @@ contract GroupCurrencyToken is ERC20 {
     }
 
     constructor(address _discriminator, address _hub, address _treasury, address _owner, uint8 _mintFeePerThousand, string memory _name, string memory _symbol) ERC20(_name, _symbol) {
-        discriminator = _discriminator;
+            discriminator = _discriminator;
         owner = _owner;
         hub = _hub;
         treasury = _treasury;
@@ -63,16 +64,33 @@ contract GroupCurrencyToken is ERC20 {
         emit OnlyTrustedCanMint(onlyTrustedCanMint);
     }
 
-    function addMemberToken(address _member) external onlyOwner {
-        address memberTokenUser = IHub(hub).tokenToUser(_member);
-        _directTrust(memberTokenUser, 100);
-        emit MemberTokenAdded(memberTokenUser);
-    }
+//    function addMemberToken(address _member) external onlyOwner {
+//        address memberTokenUser = IHub(hub).tokenToUser(_member);
+//        _directTrust(memberTokenUser, 100);
+//        emit MemberTokenAdded(memberTokenUser);
+//    }
+//
+//    function removeMemberToken(address _member) external onlyOwner {
+//        address memberTokenUser = IHub(hub).tokenToUser(_member);
+//        _directTrust(memberTokenUser, 0);
+//        emit MemberTokenRemoved(memberTokenUser);
+//    }
 
-    function removeMemberToken(address _member) external onlyOwner {
-        address memberTokenUser = IHub(hub).tokenToUser(_member);
-        _directTrust(memberTokenUser, 0);
-        emit MemberTokenRemoved(memberTokenUser);
+    function addMember(address _user) external {
+        IGroupMembershipDiscriminator(discriminator).requireIsMember(address(this), _user); // Must revert if not a member, everyone can add qualified members
+        // Add a trust relation between this org and the user
+        _directTrust(_user, 100);
+    }
+    function removeMember(address _user) external {
+        if (!IGroupMembershipDiscriminator(discriminator).isMember(address(this), _user)) {
+            // remove member, no matter who called the function
+            _directTrust(_user, 0);
+        }
+        // If sender is the member in question, remove him from the group.
+        // If sender is the owner, also remove the member from the group.
+        if (msg.sender == _user || msg.sender == owner) {
+            _directTrust(_user, 0);
+        }
     }
 
     // Group currently is created from collateral tokens, which have to be transferred to this Token before.

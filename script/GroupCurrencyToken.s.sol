@@ -25,7 +25,7 @@ contract GroupCurrencyTokenDeploy is Script {
         Vm.Log[] memory entries = vm.getRecordedLogs();
         address token = address(hub.userToToken(0x249fA3ecD95a53F742707D53688FCafbBd072f33));
         gct = GroupCurrencyToken(address(uint160(uint256(entries[1].topics[1]))));
-        gct.addMemberToken(token);
+        gct.addMember(0x249fA3ecD95a53F742707D53688FCafbBd072f33);
         
         address[] memory cols = new address[](1);
         cols[0] = token;
