@@ -22,7 +22,7 @@ contract GroupCurrencyTokenTest is Test {
 
     function testMintingModes() external {
         MockHub mockHub = new MockHub();
-        MockDiscriminator discriminator = new MockDiscriminator();
+        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
         GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
         assertFalse(gct.onlyOwnerCanMint(), "onlyOwnerCanMint should be false.");
         assertFalse(gct.onlyTrustedCanMint(), "onlyTrustedCanMint should be false.");
@@ -38,7 +38,7 @@ contract GroupCurrencyTokenTest is Test {
 
     function testAddMemberTokenEvents() external {
         MockHub mockHub = new MockHub();
-        MockDiscriminator discriminator = new MockDiscriminator();
+        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
         GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
 
         address user = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
@@ -55,7 +55,7 @@ contract GroupCurrencyTokenTest is Test {
 
     function testRemoveMemberTokenEvents() external {
         MockHub mockHub = new MockHub();
-        MockDiscriminator discriminator = new MockDiscriminator();
+        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
         GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
 
         address user = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
@@ -74,14 +74,14 @@ contract GroupCurrencyTokenTest is Test {
 
     function testFailOnlyOwnerCanAddMemberToken() external {
         MockHub mockHub = new MockHub();
-        MockDiscriminator discriminator = new MockDiscriminator();
+        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
         GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), 0x70997970C51812dc3A010C7d01b50e0d17dc79C8, 0, "GCT", "GCT");
         gct.addMember(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
     }
 
     function testFailMintingAmountExceedsBalance() external {
         MockHub mockHub = new MockHub();
-        MockDiscriminator discriminator = new MockDiscriminator();
+        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
         GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
         MockToken mockToken = new MockToken("GCT", "GCT", 49);
         mockHub.setTokenToUser(address(mockToken), 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
@@ -97,7 +97,7 @@ contract GroupCurrencyTokenTest is Test {
 
     function testFailMintingNoMemberToken() external {
         MockHub mockHub = new MockHub();
-        MockDiscriminator discriminator = new MockDiscriminator();
+        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
         GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
         MockToken mockToken = new MockToken("GCT", "GCT", 50);
         
@@ -111,7 +111,7 @@ contract GroupCurrencyTokenTest is Test {
 
     function testFailMintingMemberTokenRemoved() external {
         MockHub mockHub = new MockHub();
-        MockDiscriminator discriminator = new MockDiscriminator();
+        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
         GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
         MockToken mockToken = new MockToken("GCT", "GCT", 50);
         mockHub.setTokenToUser(address(mockToken), 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
@@ -127,7 +127,7 @@ contract GroupCurrencyTokenTest is Test {
 
     function testFailMintingNoDelegateTrustee() external {
         MockHub mockHub = new MockHub();
-        MockDiscriminator discriminator = new MockDiscriminator();
+        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
         GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
         MockToken mockToken = new MockToken("GCT", "GCT", 50);
         
@@ -141,7 +141,7 @@ contract GroupCurrencyTokenTest is Test {
 
     function testFailMintingNoCollateralInGCT() external {
         MockHub mockHub = new MockHub();
-        MockDiscriminator discriminator = new MockDiscriminator();
+        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
         GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
         MockToken mockToken = new MockToken("GCT", "GCT", 50);
         address trustee = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
@@ -157,7 +157,7 @@ contract GroupCurrencyTokenTest is Test {
 
     function testMintingSucceeds() external {
         MockHub mockHub = new MockHub();
-        MockDiscriminator discriminator = new MockDiscriminator();
+        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
         GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
         MockToken mockToken = new MockToken("GCT", "GCT", 50);
         address trustee = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
@@ -176,7 +176,7 @@ contract GroupCurrencyTokenTest is Test {
 
     function testMintingSucceedsWithOnlyTrustedCanMint() external {
         MockHub mockHub = new MockHub();
-        MockDiscriminator discriminator = new MockDiscriminator();
+        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
         GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
         MockToken mockToken = new MockToken("GCT", "GCT", 50);
         address trustee = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
@@ -200,7 +200,7 @@ contract GroupCurrencyTokenTest is Test {
 
     function testMintingSucceedsWithOnlyOwnerCanMint() external {
         MockHub mockHub = new MockHub();
-        MockDiscriminator discriminator = new MockDiscriminator();
+        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
         GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
         MockToken mockToken = new MockToken("GCT", "GCT", 50);
         address trustee = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
