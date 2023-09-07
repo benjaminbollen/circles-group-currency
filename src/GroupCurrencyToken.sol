@@ -10,24 +10,27 @@ contract GroupCurrencyToken is ERC20 {
 
     using SafeERC20 for ERC20;
 
+    uint256 constant private DIVISOR_THOUSAND = 1000;
+
     uint8 public mintFeePerThousand;
-    
+
     bool public suspended;
     bool public onlyOwnerCanMint;
-    bool public onlyTrustedCanMint;
+    bool public onlyMemberCanMint;
 
     address public owner; // the safe/EOA/contract that deployed this token, can be changed by owner
-    address public hub; // the address of the hub this token is associated with
-    address public treasury; // account which gets the personal tokens for whatever later usage
-    address public discriminator;
+    address public discriminator; // the address of the discriminator contract that determines who is a member, can be changed by owner
+    address immutable public hub; // the address of the hub this token is associated with
+    address immutable public treasury; // account which gets the personal tokens for whatever later usage
     
     event Minted(address indexed _receiver, uint256 _amount, uint256 _mintAmount, uint256 _mintFee);
     event Suspended(address indexed _owner);
     event OwnerChanged(address indexed _old, address indexed _new);
+    event DiscriminatorChanged(address indexed _old, address indexed _new);
     event OnlyOwnerCanMint(bool indexed _onlyOwnerCanMint);
-    event OnlyTrustedCanMint(bool indexed _onlyTrustedCanMint);
-    event MemberTokenAdded(address indexed _memberToken);
-    event MemberTokenRemoved(address indexed _memberToken);
+    event OnlyMemberCanMint(bool indexed _onlyMemberCanMint);
+    event MemberAdded(address indexed _member);
+    event MemberRemoved(address indexed _member);
 
     /// @dev modifier allowing function to be only called by the token owner
     modifier onlyOwner() {
@@ -36,7 +39,7 @@ contract GroupCurrencyToken is ERC20 {
     }
 
     constructor(address _discriminator, address _hub, address _treasury, address _owner, uint8 _mintFeePerThousand, string memory _name, string memory _symbol) ERC20(_name, _symbol) {
-            discriminator = _discriminator;
+        discriminator = _discriminator;
         owner = _owner;
         hub = _hub;
         treasury = _treasury;
@@ -48,10 +51,15 @@ contract GroupCurrencyToken is ERC20 {
         suspended = _suspend;
         emit Suspended(owner);
     }
-    
+
     function changeOwner(address _owner) external onlyOwner {
         owner = _owner;
         emit OwnerChanged(msg.sender, owner);
+    }
+
+    function changeDiscriminator(address _discriminator) external onlyOwner {
+        emit DiscriminatorChanged(discriminator, _discriminator);
+        discriminator = _discriminator;
     }
 
     function setOnlyOwnerCanMint(bool _onlyOwnerCanMint) external onlyOwner {
@@ -59,38 +67,31 @@ contract GroupCurrencyToken is ERC20 {
         emit OnlyOwnerCanMint(onlyOwnerCanMint);
     }
 
-    function setOnlyTrustedCanMint(bool _onlyTrustedCanMint) external onlyOwner {
-        onlyTrustedCanMint = _onlyTrustedCanMint;
-        emit OnlyTrustedCanMint(onlyTrustedCanMint);
+    function setOnlyMemberCanMint(bool _onlyMemberCanMint) external onlyOwner {
+        onlyMemberCanMint = _onlyMemberCanMint;
+        emit OnlyMemberCanMint(onlyMemberCanMint);
     }
-
-//    function addMemberToken(address _member) external onlyOwner {
-//        address memberTokenUser = IHub(hub).tokenToUser(_member);
-//        _directTrust(memberTokenUser, 100);
-//        emit MemberTokenAdded(memberTokenUser);
-//    }
-//
-//    function removeMemberToken(address _member) external onlyOwner {
-//        address memberTokenUser = IHub(hub).tokenToUser(_member);
-//        _directTrust(memberTokenUser, 0);
-//        emit MemberTokenRemoved(memberTokenUser);
-//    }
 
     function addMember(address _user) external {
-        IGroupMembershipDiscriminator(discriminator).requireIsMember(address(this), _user); // Must revert if not a member, everyone can add qualified members
-        // Add a trust relation between this org and the user
+        // Discriminator can add anyone.
+        IGroupMembershipDiscriminator(discriminator).requireIsMember(address(this), _user);
+
         _directTrust(_user, 100);
+        emit MemberAdded(_user);
     }
+
     function removeMember(address _user) external {
-        if (!IGroupMembershipDiscriminator(discriminator).isMember(address(this), _user)) {
-            // remove member, no matter who called the function
-            _directTrust(_user, 0);
+        // Discriminator can remove anyone.
+        // Members can remove themself.
+        // Owner can remove anyone.
+        if (IGroupMembershipDiscriminator(discriminator).isMember(address(this), _user)
+          && msg.sender != _user
+          && msg.sender != owner) {
+            return;
         }
-        // If sender is the member in question, remove him from the group.
-        // If sender is the owner, also remove the member from the group.
-        if (msg.sender == _user || msg.sender == owner) {
-            _directTrust(_user, 0);
-        }
+
+        _directTrust(_user, 0);
+        emit MemberRemoved(_user);
     }
 
     // Group currently is created from collateral tokens, which have to be transferred to this Token before.
@@ -100,10 +101,11 @@ contract GroupCurrencyToken is ERC20 {
         // Check status
         if (onlyOwnerCanMint) {
             require(msg.sender == owner, "Only owner can mint");
-        } else if (onlyTrustedCanMint) {
-            require(IHub(hub).limits(address(this), msg.sender) > 0, "GCT does not trust sender");
+        } else if (onlyMemberCanMint) {
+            require(IGroupMembershipDiscriminator(discriminator).isMember(address(this), msg.sender), "Only members can mint");
+            require(IHub(hub).limits(address(this), msg.sender) > 0, "You're not yet trusted. Call addMember first.");
         }
-        uint mintedAmount = 0;
+        uint mintedAmount;
         for (uint i = 0; i < _collateral.length; i++) {
             mintedAmount += _mintGroupCurrencyTokenForCollateral(_collateral[i], _amount[i]);
         }
@@ -120,13 +122,17 @@ contract GroupCurrencyToken is ERC20 {
         // Check if the Collateral Owner is trusted by this GroupCurrencyToken
         address collateralOwner = IHub(hub).tokenToUser(_collateral);
         require(IHub(hub).limits(address(this), collateralOwner) > 0, "collateral owner not trusted");
-        uint256 mintFee = (_amount / 1000) * mintFeePerThousand;
+
+        uint256 mintFee = (_amount * mintFeePerThousand) / DIVISOR_THOUSAND;
+        require(mintFeePerThousand == 0 || mintFee > 0);
         uint256 mintAmount = _amount - mintFee;
+
         // mint amount-fee to msg.sender
         _mint(msg.sender, mintAmount);
         // Token Swap, send CRC from GCTO to Treasury (has been transferred to GCTO by transferThrough)
         ERC20(_collateral).safeTransfer(treasury, _amount);
         emit Minted(msg.sender, _amount, mintAmount, mintFee);
+
         return mintAmount;
     }
 
@@ -134,5 +140,9 @@ contract GroupCurrencyToken is ERC20 {
     function _directTrust(address _trustee, uint _amount) internal {
         require(_trustee != address(0), "trustee must be valid address");
         IHub(hub).trust(_trustee, _amount);
+    }
+
+    function burn(uint256 _amount) external {
+        _burn(msg.sender, _amount);
     }
 }
