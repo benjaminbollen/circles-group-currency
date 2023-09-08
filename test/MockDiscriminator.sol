@@ -2,19 +2,19 @@ import "../src/IHub.sol";
 import "../src/IGroupMembershipDiscriminator.sol";
 
 contract MockAllowAllDiscriminator is IGroupMembershipDiscriminator {
-    function requireIsMember(address _group, address _user) external {
+    function requireIsMember(address _user) external view {
 
     }
-    function isMember(address _group, address _user) external returns(bool) {
+    function isMember(address _user) external view returns(bool) {
         return true;
     }
 }
 
 contract MockDenyAllDiscriminator is IGroupMembershipDiscriminator {
-    function requireIsMember(address _group, address _user) external {
+    function requireIsMember(address _user) external  view {
         require(false, "Haha!");
     }
-    function isMember(address _group, address _user) external returns(bool) {
+    function isMember(address _user) external view returns(bool) {
         return false;
     }
 }
@@ -28,10 +28,10 @@ contract MockAllowArrayDiscriminator is IGroupMembershipDiscriminator {
         }
     }
 
-    function requireIsMember(address _group, address _user) external {
+    function requireIsMember(address _user) external view {
         require(members[_user], "Not a member");
     }
-    function isMember(address _group, address _user) external returns(bool) {
+    function isMember(address _user) external view returns(bool) {
         return members[_user];
     }
 }

@@ -23,15 +23,15 @@ contract GroupCurrencyTokenTest is Test {
         MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
         GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
         assertFalse(gct.onlyOwnerCanMint(), "onlyOwnerCanMint should be false.");
-        assertFalse(gct.onlyTrustedCanMint(), "onlyTrustedCanMint should be false.");
+        assertFalse(gct.onlyMemberCanMint(), "onlyMemberCanMint should be false.");
         gct.setOnlyOwnerCanMint(true);
         assertTrue(gct.onlyOwnerCanMint(), "onlyOwnerCanMint should be true.");
-        gct.setOnlyTrustedCanMint(true);
-        assertTrue(gct.onlyTrustedCanMint(), "onlyOwnerCanMint should be true.");
+        gct.setOnlyMemberCanMint(true);
+        assertTrue(gct.onlyMemberCanMint(), "onlyOwnerCanMint should be true.");
         gct.setOnlyOwnerCanMint(false);
         assertFalse(gct.onlyOwnerCanMint(), "onlyOwnerCanMint should be false.");
-        gct.setOnlyTrustedCanMint(false);
-        assertFalse(gct.onlyTrustedCanMint(), "onlyTrustedCanMint should be false.");
+        gct.setOnlyMemberCanMint(false);
+        assertFalse(gct.onlyMemberCanMint(), "onlyMemberCanMint should be false.");
     }
 
     function testMockAllowList_positiveCase() external {
@@ -40,7 +40,7 @@ contract GroupCurrencyTokenTest is Test {
         singleAddressArray[0] = allowedUser;
 
         MockAllowArrayDiscriminator discriminator = new MockAllowArrayDiscriminator(singleAddressArray);
-        assertTrue(discriminator.isMember(address(this), allowedUser), "discriminator.isMember should be true.");
+        assertTrue(discriminator.isMember(allowedUser), "discriminator.isMember should be true.");
     }
 
     function testMockAllowList_negativeCase() external {
@@ -50,7 +50,7 @@ contract GroupCurrencyTokenTest is Test {
         singleAddressArray[0] = allowedUser;
 
         MockAllowArrayDiscriminator discriminator = new MockAllowArrayDiscriminator(singleAddressArray);
-        assertFalse(discriminator.isMember(address(this), deniedUser), "discriminator.isMember should be false.");
+        assertFalse(discriminator.isMember(deniedUser), "discriminator.isMember should be false.");
     }
 
     function testAddMember_AllowList_accept() external {
@@ -211,7 +211,7 @@ contract GroupCurrencyTokenTest is Test {
         gct.mint(cols, tokens);
     }
 
-    function testMintingSucceedsWithOnlyTrustedCanMint() external {
+    function testMintingSucceedsWithonlyMemberCanMint() external {
         MockHub mockHub = new MockHub();
         MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
         GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
@@ -219,7 +219,7 @@ contract GroupCurrencyTokenTest is Test {
         address trustee = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
         mockHub.setTokenToUser(address(mockToken), trustee);
         gct.addMember(trustee);
-        gct.setOnlyTrustedCanMint(true);
+        gct.setOnlyMemberCanMint(true);
         address[] memory cols = new address[](1);
         cols[0] = address(mockToken);
         uint256[] memory tokens = new uint256[](1);

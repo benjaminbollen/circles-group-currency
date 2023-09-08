@@ -74,7 +74,7 @@ contract GroupCurrencyToken is ERC20 {
 
     function addMember(address _user) external {
         // Discriminator can add anyone.
-        IGroupMembershipDiscriminator(discriminator).requireIsMember(address(this), _user);
+        IGroupMembershipDiscriminator(discriminator).requireIsMember(_user);
 
         _directTrust(_user, 100);
         emit MemberAdded(_user);
@@ -84,7 +84,7 @@ contract GroupCurrencyToken is ERC20 {
         // Discriminator can remove anyone.
         // Members can remove themself.
         // Owner can remove anyone.
-        if (IGroupMembershipDiscriminator(discriminator).isMember(address(this), _user)
+        if (IGroupMembershipDiscriminator(discriminator).isMember(_user)
           && msg.sender != _user
           && msg.sender != owner) {
             return;
@@ -102,7 +102,7 @@ contract GroupCurrencyToken is ERC20 {
         if (onlyOwnerCanMint) {
             require(msg.sender == owner, "Only owner can mint");
         } else if (onlyMemberCanMint) {
-            require(IGroupMembershipDiscriminator(discriminator).isMember(address(this), msg.sender), "Only members can mint");
+            require(IGroupMembershipDiscriminator(discriminator).isMember(msg.sender), "Only members can mint");
             require(IHub(hub).limits(address(this), msg.sender) > 0, "You're not yet trusted. Call addMember first.");
         }
         uint mintedAmount;
