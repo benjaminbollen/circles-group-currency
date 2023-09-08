@@ -2,11 +2,12 @@
 pragma solidity ^0.8.0;
 
 import "../lib/openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
+import "../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 import "../lib/openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
 import "./IGroupMembershipDiscriminator.sol";
 import "./IHub.sol";
 
-contract GroupCurrencyToken is ERC20 {
+contract GroupCurrencyToken is Ownable, ERC20  {
 
     using SafeERC20 for ERC20;
 
@@ -18,43 +19,30 @@ contract GroupCurrencyToken is ERC20 {
     bool public onlyOwnerCanMint;
     bool public onlyMemberCanMint;
 
-    address public owner; // the safe/EOA/contract that deployed this token, can be changed by owner
     address public discriminator; // the address of the discriminator contract that determines who is a member, can be changed by owner
     address immutable public hub; // the address of the hub this token is associated with
     address immutable public treasury; // account which gets the personal tokens for whatever later usage
     
     event Minted(address indexed _receiver, uint256 _amount, uint256 _mintAmount, uint256 _mintFee);
     event Suspended(address indexed _owner);
-    event OwnerChanged(address indexed _old, address indexed _new);
     event DiscriminatorChanged(address indexed _old, address indexed _new);
     event OnlyOwnerCanMint(bool indexed _onlyOwnerCanMint);
     event OnlyMemberCanMint(bool indexed _onlyMemberCanMint);
     event MemberAdded(address indexed _member);
     event MemberRemoved(address indexed _member);
 
-    /// @dev modifier allowing function to be only called by the token owner
-    modifier onlyOwner() {
-        require(msg.sender == owner, "only owner can call");
-        _;
-    }
-
     constructor(address _discriminator, address _hub, address _treasury, address _owner, uint8 _mintFeePerThousand, string memory _name, string memory _symbol) ERC20(_name, _symbol) {
         discriminator = _discriminator;
-        owner = _owner;
         hub = _hub;
         treasury = _treasury;
         mintFeePerThousand = _mintFeePerThousand;
+        transferOwnership(_owner);
         IHub(hub).organizationSignup();
     }
     
     function suspend(bool _suspend) external onlyOwner {
         suspended = _suspend;
-        emit Suspended(owner);
-    }
-
-    function changeOwner(address _owner) external onlyOwner {
-        owner = _owner;
-        emit OwnerChanged(msg.sender, owner);
+        emit Suspended(owner());
     }
 
     function changeDiscriminator(address _discriminator) external onlyOwner {
@@ -86,7 +74,7 @@ contract GroupCurrencyToken is ERC20 {
         // Owner can remove anyone.
         if (IGroupMembershipDiscriminator(discriminator).isMember(_user)
           && msg.sender != _user
-          && msg.sender != owner) {
+          && msg.sender != owner()) {
             return;
         }
 
@@ -100,7 +88,7 @@ contract GroupCurrencyToken is ERC20 {
         require(!suspended, "Minting is suspended.");
         // Check status
         if (onlyOwnerCanMint) {
-            require(msg.sender == owner, "Only owner can mint");
+            require(msg.sender == owner(), "Only owner can mint");
         } else if (onlyMemberCanMint) {
             require(IGroupMembershipDiscriminator(discriminator).isMember(msg.sender), "Only members can mint");
             require(IHub(hub).limits(address(this), msg.sender) > 0, "You're not yet trusted. Call addMember first.");
@@ -121,6 +109,7 @@ contract GroupCurrencyToken is ERC20 {
     function _mintGroupCurrencyTokenForCollateral(address _collateral, uint256 _amount) internal returns (uint256) {
         // Check if the Collateral Owner is trusted by this GroupCurrencyToken
         address collateralOwner = IHub(hub).tokenToUser(_collateral);
+        require(IGroupMembershipDiscriminator(discriminator).isMember(collateralOwner), "collateral owner not a member");
         require(IHub(hub).limits(address(this), collateralOwner) > 0, "collateral owner not trusted");
 
         uint256 mintFee = (_amount * mintFeePerThousand) / DIVISOR_THOUSAND;

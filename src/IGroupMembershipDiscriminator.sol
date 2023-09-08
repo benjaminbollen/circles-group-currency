@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL
+pragma solidity ^0.8.0;
+
 interface IGroupMembershipDiscriminator {
     /**
      * @dev Throws if called with a _user that's not member of the group.

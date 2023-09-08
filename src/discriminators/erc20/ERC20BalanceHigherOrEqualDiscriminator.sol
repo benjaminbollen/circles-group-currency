@@ -1,26 +1,20 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: AGPL
 pragma solidity ^0.8.0;
 
 import "../../IGroupMembershipDiscriminator.sol";
 import "../../../lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+import "../../../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 
-contract ERC20BalanceHigherOrEqualDiscriminator is IGroupMembershipDiscriminator {
+contract ERC20BalanceHigherOrEqualDiscriminator is Ownable, IGroupMembershipDiscriminator {
 
-    address public owner;
     address public erc20Contract;
     uint256 public balanceThreshold;
 
-    event OwnerChanged(address indexed _old, address indexed _new);
     event ERC20ContractChanged(address indexed _old, address indexed _new);
     event BalanceThresholdChanged(uint256 _old, uint256 _new);
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "only owner can call");
-        _;
-    }
-
     constructor(address _owner, address _erc20Contract, uint256 _balanceThreshold) {
-        owner = _owner;
+        transferOwnership(_owner);
         erc20Contract = _erc20Contract;
         balanceThreshold = _balanceThreshold;
     }
@@ -31,11 +25,6 @@ contract ERC20BalanceHigherOrEqualDiscriminator is IGroupMembershipDiscriminator
 
     function isMember(address _user) external view returns(bool) {
         return IERC20(erc20Contract).balanceOf(_user) >= balanceThreshold;
-    }
-
-    function changeOwner(address _owner) external onlyOwner {
-        owner = _owner;
-        emit OwnerChanged(msg.sender, owner);
     }
 
     function changeERC20Contract(address _erc20Contract) external onlyOwner {

@@ -1,29 +1,18 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: AGPL
 pragma solidity ^0.8.0;
 
 import "../../IGroupMembershipDiscriminator.sol";
+import "../../../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 
-contract NotDiscriminator is IGroupMembershipDiscriminator {
+contract NotDiscriminator is Ownable, IGroupMembershipDiscriminator {
 
     IGroupMembershipDiscriminator public discriminator;
-    address public owner;
 
     event DiscriminatorChanged(address indexed oldDiscriminator, address indexed newDiscriminator);
-    event OwnerChanged(address indexed oldOwner, address indexed newOwner);
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "Only owner can call");
-        _;
-    }
 
     constructor(address _owner, IGroupMembershipDiscriminator _discriminator) {
-        owner = _owner;
+        transferOwnership(_owner);
         discriminator = _discriminator;
-    }
-
-    function changeOwner(address newOwner) external onlyOwner {
-        emit OwnerChanged(owner, newOwner);
-        owner = newOwner;
     }
 
     function changeDiscriminator(IGroupMembershipDiscriminator newDiscriminator) external onlyOwner {

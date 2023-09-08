@@ -1,26 +1,20 @@
-// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: AGPL
 pragma solidity ^0.8.0;
 
 import "../../IGroupMembershipDiscriminator.sol";
 import "../../../lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol";
+import "../../../lib/openzeppelin-contracts/contracts/access/Ownable.sol";
 
-contract SpecificNftOwnershipDiscriminator is IGroupMembershipDiscriminator {
+contract SpecificNftOwnershipDiscriminator is Ownable, IGroupMembershipDiscriminator {
 
-    address public owner;
     address public nftContract;
     uint256 public tokenId;
 
-    event OwnerChanged(address indexed _old, address indexed _new);
     event NftContractChanged(address indexed _old, address indexed _new);
     event TokenIdChanged(uint256 _old, uint256 _new);
 
-    modifier onlyOwner() {
-        require(msg.sender == owner, "only owner can call");
-        _;
-    }
-
     constructor(address _owner, address _nftContract, uint256 _tokenId) {
-        owner = _owner;
+        transferOwnership(_owner);
         nftContract = _nftContract;
         tokenId = _tokenId;
     }
@@ -31,11 +25,6 @@ contract SpecificNftOwnershipDiscriminator is IGroupMembershipDiscriminator {
 
     function isMember(address _user) external view returns(bool) {
         return IERC721(nftContract).ownerOf(tokenId) == _user;
-    }
-
-    function changeOwner(address _owner) external onlyOwner {
-        owner = _owner;
-        emit OwnerChanged(msg.sender, owner);
     }
 
     function changeNftContract(address _nftContract) external onlyOwner {
