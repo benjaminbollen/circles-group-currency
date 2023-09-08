@@ -19,5 +19,4 @@ contract GroupCurrencyTokenFactory {
         );
         emit GroupCurrencyTokenCreated(address(gct), msg.sender);
     }
-
 }
