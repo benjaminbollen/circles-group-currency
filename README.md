@@ -1,4 +1,13 @@
 # Circles Group Currency Token
+
+## Get started
+### Prerequisites
+* Clone Repo
+* Install Foundry
+
+### Run Tests
+* `forge test -vvvv`
+
 ## Description
 ### Group Currency Contract
 
@@ -92,16 +101,6 @@ GroupCurrencyToken token = new GroupCurrencyToken(
 ### Direct Minting (Token was trusted by `addMember`)
 
 ![](https://i.imgur.com/X9YyadU.png)
-
-## Tests
-
-### Prerequisites
-
-* Clone Repo
-* Install Foundry
-
-### Run Tests
-* `forge test -vvvv`
 
 
 ## References
