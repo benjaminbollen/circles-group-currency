@@ -1,4 +1,4 @@
-# Group Currency Token Smart Contract
+# Circles Group Currency Token
 ## Description
 ### Group Currency Contract
 
@@ -53,6 +53,8 @@ _Note: The GroupCurrencyToken contract is WIP, non-tested, non-audited and not r
 * **burn(uint256 _amount)**  
    Allows users to burn a specified number of tokens from their account, reducing the total supply.
 
+### Next steps
+* Examine the tests in `test/GroupCurrencyTokenTest.sol`
 
 ## Patterns
 ### Allow and deny lists
@@ -85,35 +87,22 @@ GroupCurrencyToken token = new GroupCurrencyToken(
     , _symbol);
 ```
 
-## Call Flows for direct minting and delegate minting
+## Call Flows for direct minting
 
 ### Direct Minting (Token was trusted by `addMember`)
 
 ![](https://i.imgur.com/X9YyadU.png)
 
-## Tech Walk-Through
+## Tests
 
-There are two possibilities to explore the functionality of GCT:
-
-1. Examine the unit tests in `test/GroupCurrencyTokenTest`
-2. Examine the integration test in `scripts/GroupCurrencyToken.s.sol`
-
-## Prerequisites
-
-* Install Foundry
-
-## Setup
+### Prerequisites
 
 * Clone Repo
+* Install Foundry
 
-## Run (Tests)
-
+### Run Tests
 * `forge test -vvvv`
 
-## Gnosis Chain Integration Tests
-
-* `forge script script/GroupCurrencyToken.s.sol -vvvv --fork-url=
-https://rpc.gnosischain.com`
 
 ## References
 
