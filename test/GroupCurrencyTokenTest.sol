@@ -9,7 +9,6 @@ import "../src/GroupCurrencyToken.sol";
 import "../src/IHub.sol";
 import "./MockHub.sol";
 import "./MockToken.sol";
-import "./BoolDiscriminator.sol";
 import "../src/discriminators/MembershipListDiscriminator.sol";
 import "./MockEnvironment.sol";
 import "./MockUser.sol";
