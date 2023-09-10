@@ -26,6 +26,65 @@ A group currency would define a number of individual Circles tokens directly or 
 
 _Note: The GroupCurrencyToken contract is WIP, non-tested, non-audited and not ready for Mainnet/production usage!_
 
+
+### Contract Methods
+* **Constructor**  
+   Initializes the new contract with the specified parameters including minting mode, addresses for various roles, the name, and symbol for the new token, among other settings.
+
+* **changeMintingMode(MintingMode _newMode)**  
+   Allows the contract owner to change the minting mode to a new mode, provided minting isn't permanently suspended.
+
+* **changeDiscriminator(address _discriminator)**  
+   Allows the contract owner to change the discriminator address to a new address.
+
+* **addMember(address _user)**  
+   Allows everyone to add a new owner to the group, provided they are accepted by the discriminator.
+
+* **removeMember(address _user)**  
+   Allows everyone to remove an owner from the group, provided they aren't accepted by the discriminator.  
+   Members can remove themselves from the group. The group owner can remove anyone from the group.
+
+* **mint(address[] calldata _collateral, uint256[] calldata _amount)**  
+   Enables users to mint new group currency tokens by providing collateral tokens. The minting process is governed by the current minting mode and the role of the sender in the group.
+
+* **transfer(address _dst, uint256 _wad)**  
+   Allows to transfer the group currency tokens to another address.
+
+* **burn(uint256 _amount)**  
+   Allows users to burn a specified number of tokens from their account, reducing the total supply.
+
+
+## Patterns
+### Allow and deny lists
+Use the `MembershipListDiscriminator` to create a list of allowed or denied addresses.
+Then negate the deny list with the `NotDiscriminator` and combine both with the `AndAggregateDiscriminator` to create a list of allowed addresses except all the users on the deny list. 
+If an address is in both lists, it will be denied.
+```solidity
+address owner = msg.sender;
+
+address[] defaultAllowList = new address[1];
+defaultAllowList[0] = owner;
+MembershipListDiscriminator allowList = new MembershipListDiscriminator(owner, defaultAllowList);
+
+address[] defaultDenyList = new address[0];
+MembershipListDiscriminator denyList = new MembershipListDiscriminator(owner, defaultDenyList);
+
+IDiscriminator[] discriminators = new IDiscriminator[2];
+discriminators[0] = allowList;
+discriminators[1] = new NotDiscriminator(owner, denyList);
+
+AndAggregateDiscriminator andDiscriminator = new AndAggregateDiscriminator(owner, discriminators);
+GroupCurrencyToken token = new GroupCurrencyToken(
+    MintingMode.EverybodyCanMint,
+    , address(andDiscriminator)
+    , _hub
+    , _treasury
+    , _owner
+    , _mintFeePerThousand
+    , _name
+    , _symbol);
+```
+
 ## Call Flows for direct minting and delegate minting
 
 ### Direct Minting (Token was trusted by `addMember`)
