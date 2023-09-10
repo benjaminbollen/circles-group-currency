@@ -11,8 +11,12 @@ contract MembershipListDiscriminator is Ownable, IGroupMembershipDiscriminator {
     event MemberAdded(address indexed _member);
     event MemberRemoved(address indexed _member);
 
-    constructor(address _owner) {
+    constructor(address _owner, address[] memory _members) {
         transferOwnership(_owner);
+        for(uint i = 0; i < _members.length; i++) {
+            require(_members[i] != address(0), "member must be valid address");
+            members[_members[i]] = true;
+        }
     }
 
     function requireIsMember(address _user) external view {
@@ -24,11 +28,13 @@ contract MembershipListDiscriminator is Ownable, IGroupMembershipDiscriminator {
     }
 
     function addMember(address _user) external onlyOwner {
+        require(_user != address(0), "member must be valid address");
         members[_user] = true;
         emit MemberAdded(_user);
     }
 
     function removeMember(address _user) external onlyOwner {
+        require(_user != address(0), "member must be valid address");
         members[_user] = false;
         emit MemberRemoved(_user);
     }

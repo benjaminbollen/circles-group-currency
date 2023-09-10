@@ -7,8 +7,9 @@ contract GroupCurrencyTokenFactory {
 
     event GroupCurrencyTokenCreated(address indexed _address, address indexed _deployer);
 
-    function createGroupCurrencyToken(address _discriminator, address _hub, address _treasury, address _owner, uint8 _mintFeePerThousand, string memory _name, string memory _symbol) public {
+    function create(MintingMode _initialMintingMode, address _discriminator, address _hub, address _treasury, address _owner, uint8 _mintFeePerThousand, string memory _name, string memory _symbol) public returns (GroupCurrencyToken) {
         GroupCurrencyToken gct = new GroupCurrencyToken(
+            _initialMintingMode,
             _discriminator,
             _hub,
             _treasury,
@@ -17,6 +18,9 @@ contract GroupCurrencyTokenFactory {
             _name,
             _symbol
         );
+
         emit GroupCurrencyTokenCreated(address(gct), msg.sender);
+
+        return gct;
     }
 }

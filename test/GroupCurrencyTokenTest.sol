@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: AGPL
+pragma solidity ^0.8.0;
+
 pragma abicoder v2;
 
 import "../lib/forge-std/src/Test.sol";
@@ -6,264 +9,422 @@ import "../src/GroupCurrencyToken.sol";
 import "../src/IHub.sol";
 import "./MockHub.sol";
 import "./MockToken.sol";
-import "./MockDiscriminator.sol";
+import "./BoolDiscriminator.sol";
+import "../src/discriminators/MembershipListDiscriminator.sol";
+import "./MockEnvironment.sol";
+import "./MockUser.sol";
 
 contract GroupCurrencyTokenTest is Test {
 
     event Trust(address indexed _canSendTo, address indexed _user, uint256 _limit);
     event OrganizationSignup(address indexed _organization);
-
     event Transfer(address indexed _from, address indexed _to, uint256 _value);
-    event Minted(address indexed _receiver, uint256 _amount, uint256 _mintAmount, uint256 _mintFee);
     event MemberAdded(address indexed _Member);
     event MemberRemoved(address indexed _Member);
+    event MintingModeChanged(address indexed _owner, MintingMode oldMode, MintingMode newMode);
+    event DiscriminatorChanged(address indexed oldDiscriminator, address indexed newDiscriminator);
+    event Minted(address indexed _receiver, uint256 _amount, uint256 _mintAmount, uint256 _mintFee);
 
-    function testMintingModes() external {
-        MockHub mockHub = new MockHub();
-        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
-        GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
-        assertFalse(gct.onlyOwnerCanMint(), "onlyOwnerCanMint should be false.");
-        assertFalse(gct.onlyMemberCanMint(), "onlyMemberCanMint should be false.");
-        gct.setOnlyOwnerCanMint(true);
-        assertTrue(gct.onlyOwnerCanMint(), "onlyOwnerCanMint should be true.");
-        gct.setOnlyMemberCanMint(true);
-        assertTrue(gct.onlyMemberCanMint(), "onlyOwnerCanMint should be true.");
-        gct.setOnlyOwnerCanMint(false);
-        assertFalse(gct.onlyOwnerCanMint(), "onlyOwnerCanMint should be false.");
-        gct.setOnlyMemberCanMint(false);
-        assertFalse(gct.onlyMemberCanMint(), "onlyMemberCanMint should be false.");
-    }
+    MockEnvironment mockEnv = new MockEnvironment();
 
-    function testMockAllowList_positiveCase() external {
-        address allowedUser = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
-        address[] memory singleAddressArray = new address[](1);
-        singleAddressArray[0] = allowedUser;
+    function _setupGctMinting(MockUser user, GroupTokenAndDiscriminator gct, MockToken collateralToken, uint256 amount, bool expectEvents) private {
+        vm.expectEmit(true, true, false, false);
+        emit Transfer(user.getUserAddress(), address(gct.groupToken()), amount);
 
-        MockAllowArrayDiscriminator discriminator = new MockAllowArrayDiscriminator(singleAddressArray);
-        assertTrue(discriminator.isMember(allowedUser), "discriminator.isMember should be true.");
-    }
-
-    function testMockAllowList_negativeCase() external {
-        address allowedUser = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
-        address deniedUser = 0x4324643246432464324643246432464324643246;
-        address[] memory singleAddressArray = new address[](1);
-        singleAddressArray[0] = allowedUser;
-
-        MockAllowArrayDiscriminator discriminator = new MockAllowArrayDiscriminator(singleAddressArray);
-        assertFalse(discriminator.isMember(deniedUser), "discriminator.isMember should be false.");
-    }
-
-    function testAddMember_AllowList_accept() external {
-        MockHub mockHub = new MockHub();
-        address allowedUser = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
-        address deniedUser = 0x4324643246432464324643246432464324643246;
-
-        address[] memory singleAddressArray = new address[](1);
-        singleAddressArray[0] = allowedUser;
-
-        MockAllowArrayDiscriminator discriminator = new MockAllowArrayDiscriminator(singleAddressArray);
-        GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
-
-        vm.expectEmit(true, true, false, true, address(mockHub));
-        emit Trust(address(gct), allowedUser, 100);
-        vm.expectEmit(true, true, false, true, address(gct));
-        emit MemberAdded(allowedUser);
-
-        gct.addMember(allowedUser);
-    }
-
-    function testAddMember_AllowList_deny() external {
-        MockHub mockHub = new MockHub();
-
-        address allowedUser = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
-        address deniedUser = 0x4324643246432464324643246432464324643246;
-
-        address[] memory singleAddressArray = new address[](1);
-        singleAddressArray[0] = allowedUser;
-
-        MockAllowArrayDiscriminator discriminator = new MockAllowArrayDiscriminator(singleAddressArray);
-        GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
-
-        gct.addMember(deniedUser);
-    }
-
-    function testAddMemberEvents() external {
-        MockHub mockHub = new MockHub();
-        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
-        GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
-
-        address user = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
-        MockToken mockToken = new MockToken("GCT", "GCT", 50);
-        mockHub.setTokenToUser(address(mockToken), user);
-
-        vm.expectEmit(true, true, false, true, address(mockHub));
-        emit Trust(address(gct), user, 100);
-        vm.expectEmit(true, true, false, true, address(gct));
-        emit MemberAdded(user);
-        
-        gct.addMember(user);
-    }
-
-    function testRemoveMemberEvents() external {
-        MockHub mockHub = new MockHub();
-        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
-        GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
-
-        address user = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
-        MockToken mockToken = new MockToken("GCT", "GCT", 50);
-        mockHub.setTokenToUser(address(mockToken), user);
-
-        gct.addMember(user);
-
-        vm.expectEmit(true, true, false, true, address(mockHub));
-        emit Trust(address(gct), user, 0);
-        vm.expectEmit(true, true, false, true, address(gct));
-        emit MemberRemoved(user);
-
-        gct.removeMember(user);
-    }
-
-    function testFailOnlyOwnerCanAddMember() external {
-        MockHub mockHub = new MockHub();
-        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
-        GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), 0x70997970C51812dc3A010C7d01b50e0d17dc79C8, 0, "GCT", "GCT");
-        gct.addMember(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
-    }
-
-    function testFailMintingAmountExceedsBalance() external {
-        MockHub mockHub = new MockHub();
-        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
-        GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
-        MockToken mockToken = new MockToken("GCT", "GCT", 49);
-        mockHub.setTokenToUser(address(mockToken), 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
-        gct.addMember(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
         address[] memory cols = new address[](1);
-        cols[0] = address(mockToken);
+        cols[0] = address(collateralToken);
         uint256[] memory tokens = new uint256[](1);
-        tokens[0] = 50;
-        mockToken.transfer(address(gct), 50);
-        
-        gct.mint(cols, tokens);
+        tokens[0] = amount;
+        user.crcTransfer(collateralToken, address(gct.groupToken()), amount);
+
+        if (expectEvents) {
+            vm.expectEmit(false, false, false, false);
+            emit Transfer(0x0000000000000000000000000000000000000000, user.getUserAddress(), amount);
+            vm.expectEmit(false, false, false, false);
+            emit Transfer(address(gct.groupToken()), user.getUserAddress(), amount);
+
+            vm.expectEmit(true, true, false, true, address(gct.groupToken()));
+            emit Minted(user.getUserAddress(), amount, amount, 0);
+        }
     }
 
-    function testFailMintingNoMember() external {
-        MockHub mockHub = new MockHub();
-        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
-        GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
-        MockToken mockToken = new MockToken("GCT", "GCT", 50);
-        
-        address[] memory cols = new address[](1);
-        cols[0] = address(mockToken);
-        uint256[] memory tokens = new uint256[](1);
-        tokens[0] = 50;
-        mockToken.transfer(address(gct), 50);
-        gct.mint(cols, tokens);
+    function testSuspendTemporarily() external {
+        MockUser user = mockEnv.signup(50000000000000000000);
+        GroupTokenAndDiscriminator gct = user.createSingleMemberGroupCurrency(MintingMode.EveryoneCanMint, user.getUserAddress(), true, 0);
+
+        _setupGctMinting(user, gct, user.circlesToken(), 50, true);
+        user.gctMint(gct.groupToken(), user.circlesToken(), 50);
+
+        vm.expectEmit(true, true, false, true, address(gct.groupToken()));
+        emit MintingModeChanged(address(user.getUserAddress()), MintingMode.EveryoneCanMint, MintingMode.TemporarilySuspended);
+
+        user.gctSuspendTemporarily(gct.groupToken());
+
+        _setupGctMinting(user, gct, user.circlesToken(), 50, false);
+        try user.gctMint(gct.groupToken(), user.circlesToken(), 50) {
+            fail("Should have thrown.");
+        } catch Error(string memory reason) {
+            assertEq(reason, "Minting is temporarily suspended.");
+        }
+
+        user.gctSetOnlyOwnerCanMint(gct.groupToken());
+
+        _setupGctMinting(user, gct, user.circlesToken(), 50, true);
+        user.gctMint(gct.groupToken(), user.circlesToken(), 50);
     }
 
-    function testFailMintingMemberRemoved() external {
-        MockHub mockHub = new MockHub();
-        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
-        GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
-        MockToken mockToken = new MockToken("GCT", "GCT", 50);
-        mockHub.setTokenToUser(address(mockToken), 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
-        gct.addMember(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
-        address[] memory cols = new address[](1);
-        cols[0] = address(mockToken);
-        uint256[] memory tokens = new uint256[](1);
-        tokens[0] = 50;
-        mockToken.transfer(address(gct), 50);
-        gct.removeMember(0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266);
-        gct.mint(cols, tokens);
+    function testSuspendPermanently() external {
+        MockUser user = mockEnv.signup(50000000000000000000);
+        GroupTokenAndDiscriminator gct = user.createSingleMemberGroupCurrency(MintingMode.EveryoneCanMint, user.getUserAddress(), true, 0);
+
+        _setupGctMinting(user, gct, user.circlesToken(), 50, true);
+        user.gctMint(gct.groupToken(), user.circlesToken(), 50);
+
+        vm.expectEmit(true, true, false, true, address(gct.groupToken()));
+        emit MintingModeChanged(address(user.getUserAddress()), MintingMode.EveryoneCanMint, MintingMode.PermanentlySuspended);
+
+        user.gctSuspendPermanently(gct.groupToken());
+
+        _setupGctMinting(user, gct, user.circlesToken(), 50, false);
+        try user.gctMint(gct.groupToken(), user.circlesToken(), 50) {
+            fail("Should have thrown.");
+        } catch Error(string memory reason) {
+            assertEq(reason, "Minting is permanently suspended.");
+        }
+
+        try user.gctSetOnlyOwnerCanMint(gct.groupToken()) {
+            fail("Should have thrown.");
+        } catch Error(string memory reason) {
+            assertEq(reason, "Minting is permanently suspended.");
+        }
     }
 
-    function testFailMintingNoCollateralInGCT() external {
-        MockHub mockHub = new MockHub();
-        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
-        GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
-        MockToken mockToken = new MockToken("GCT", "GCT", 50);
-        address trustee = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
-        mockHub.setTokenToUser(address(mockHub), trustee);
-        gct.addMember(trustee);
-        address[] memory cols = new address[](1);
-        cols[0] = address(mockToken);
-        uint256[] memory tokens = new uint256[](1);
-        tokens[0] = 50;
-        
-        gct.mint(cols, tokens);
+    function testEmitDiscriminatorChanged() external {
+        MockUser user = mockEnv.signup(50000000000000000000);
+        GroupTokenAndDiscriminator gct = user.createEmptyGroupCurrency(MintingMode.EveryoneCanMint, 0);
+
+        vm.expectEmit(true, true, false, true, address(gct.groupToken()));
+        emit DiscriminatorChanged(address(gct.discriminator()), gct.groupTokenOwner().getUserAddress());
+
+        user.gctChangeDiscriminator(gct.groupToken(), gct.groupTokenOwner().getUserAddress());
     }
 
-    function testMintingSucceeds() external {
-        MockHub mockHub = new MockHub();
-        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
-        GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
-        MockToken mockToken = new MockToken("GCT", "GCT", 50);
-        address trustee = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
-        mockHub.setTokenToUser(address(mockToken), trustee);
-        gct.addMember(trustee);
-        address[] memory cols = new address[](1);
-        cols[0] = address(mockToken);
-        uint256[] memory tokens = new uint256[](1);
-        tokens[0] = 50;
-        mockToken.transfer(address(gct), 50);
-        
-        setupExpectEmitMinted(address(this), address(gct));
+    function testMintFee() external {
+        MockUser user = mockEnv.signup(50000000000000000000);
+        GroupTokenAndDiscriminator gct = user.createSingleMemberGroupCurrency(MintingMode.EveryoneCanMint, user.getUserAddress(), true, 100);
 
-        gct.mint(cols, tokens);
+        assertEq(gct.groupToken().mintFeePerThousand(), 100);
+
+        _setupGctMinting(user, gct, user.circlesToken(), 50, false);
+
+        vm.expectEmit(true, true, false, true, address(gct.groupToken()));
+        emit Minted(user.getUserAddress(), 50, 45, 5);
+
+        user.gctMint(gct.groupToken(), user.circlesToken(), 50);
     }
 
-    function testMintingSucceedsWithonlyMemberCanMint() external {
-        MockHub mockHub = new MockHub();
-        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
-        GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
-        MockToken mockToken = new MockToken("GCT", "GCT", 50);
-        address trustee = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
-        mockHub.setTokenToUser(address(mockToken), trustee);
-        gct.addMember(trustee);
-        gct.setOnlyMemberCanMint(true);
-        address[] memory cols = new address[](1);
-        cols[0] = address(mockToken);
-        uint256[] memory tokens = new uint256[](1);
-        tokens[0] = 50;
-        mockToken.transfer(address(gct), 50);
-        
-        mockHub.setTokenToUser(0x70997970C51812dc3A010C7d01b50e0d17dc79C8, 0x70997970C51812dc3A010C7d01b50e0d17dc79C8);
-        gct.addMember(0x70997970C51812dc3A010C7d01b50e0d17dc79C8);
+    function testMintWithUntrustedCollateral() external {
+        MockUser user = mockEnv.signup(50000000000000000000);
+        GroupTokenAndDiscriminator gct = user.createEmptyGroupCurrency(MintingMode.EveryoneCanMint, 0);
 
-        setupExpectEmitMinted(0x70997970C51812dc3A010C7d01b50e0d17dc79C8, address(gct));
+        user.discriminatorAddMember(gct.discriminator(), user.getUserAddress());
 
-        vm.prank(0x70997970C51812dc3A010C7d01b50e0d17dc79C8);
-        gct.mint(cols, tokens);
+        _setupGctMinting(user, gct, user.circlesToken(), 50, false);
+        try user.gctMint(gct.groupToken(), user.circlesToken(), 50) {
+            fail("Should have thrown.");
+        } catch Error(string memory reason) {
+            assertEq(reason, "collateral owner not trusted");
+        }
+
+        vm.expectEmit(true, true, false, true, address(user.environment().hub()));
+        emit Trust(address(gct.groupToken()), user.getUserAddress(), 100);
+
+        user.gctAddMyself(gct.groupToken());
+
+        _setupGctMinting(user, gct, user.circlesToken(), 50, true);
+        user.gctMint(gct.groupToken(), user.circlesToken(), 50);
     }
 
-    function testMintingSucceedsWithOnlyOwnerCanMint() external {
-        MockHub mockHub = new MockHub();
-        MockAllowAllDiscriminator discriminator = new MockAllowAllDiscriminator();
-        GroupCurrencyToken gct = new GroupCurrencyToken(address(discriminator), address(mockHub), address(this), address(this), 0, "GCT", "GCT");
-        MockToken mockToken = new MockToken("GCT", "GCT", 50);
-        address trustee = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
-        mockHub.setTokenToUser(address(mockToken), trustee);
-        gct.addMember(trustee);
-        gct.setOnlyOwnerCanMint(true);
-        address[] memory cols = new address[](1);
-        cols[0] = address(mockToken);
-        uint256[] memory tokens = new uint256[](1);
-        tokens[0] = 50;
-        mockToken.transfer(address(gct), 50);
-    
-        setupExpectEmitMinted(address(this), address(gct));
+    function testOnlyOwnerCanMint() external {
+        MockUser user = mockEnv.signup(50000000000000000000);
+        MockUser otherUser = mockEnv.signup(50000000000000000000);
+        address[] memory allowedUsers = new address[](2);
+        allowedUsers[0] = user.getUserAddress();
+        allowedUsers[1] = otherUser.getUserAddress();
+        GroupTokenAndDiscriminator gct = user.createGroupCurrency(MintingMode.EveryoneCanMint, allowedUsers, true, 0);
 
-        gct.mint(cols, tokens);
+        vm.expectEmit(true, true, false, true, address(gct.groupToken()));
+        emit MintingModeChanged(address(user.getUserAddress()), MintingMode.EveryoneCanMint, MintingMode.OnlyOwnerCanMint);
+
+        user.gctSetOnlyOwnerCanMint(gct.groupToken());
+
+        _setupGctMinting(otherUser, gct, otherUser.circlesToken(), 50, false);
+        try otherUser.gctMint(gct.groupToken(), otherUser.circlesToken(), 50) {
+            fail("Should have thrown.");
+        } catch Error(string memory reason) {
+            assertEq(reason, "Only owner can mint");
+        }
+
+        _setupGctMinting(user, gct, user.circlesToken(), 50, true);
+        user.gctMint(gct.groupToken(), user.circlesToken(), 50);
+
+        vm.expectEmit(true, true, false, true, address(user.environment().hub()));
+        emit Trust(address(gct.groupToken()), otherUser.getUserAddress(), 100);
+
+        vm.expectEmit(true, true, false, true, address(gct.groupToken()));
+        emit MemberAdded(otherUser.getUserAddress());
+
+        otherUser.gctAddMyself(gct.groupToken());
+        try otherUser.gctMint(gct.groupToken(), otherUser.circlesToken(), 50) {
+            fail("Should have thrown.");
+        } catch Error(string memory reason) {
+            assertEq(reason, "Only owner can mint");
+        }
     }
 
-    function setupExpectEmitMinted(address from, address gct) private {
-        vm.expectEmit(false, false, false, false);
-        emit Transfer(0x0000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000, 0);
-        vm.expectEmit(false, false, false, false);
-        emit Transfer(0x0000000000000000000000000000000000000000, 0x0000000000000000000000000000000000000000, 0);
-        
-        vm.expectEmit(true, true, false, true, gct);
-        emit Minted(from, 50, 50, 0);
+    function testOnlyMemberCanMint() external {
+        MockUser user = mockEnv.signup(50000000000000000000);
+        MockUser otherUser = mockEnv.signup(50000000000000000000);
+        GroupTokenAndDiscriminator gct = user.createSingleMemberGroupCurrency(MintingMode.EveryoneCanMint, otherUser.getUserAddress(), true, 0);
+
+        vm.expectEmit(true, true, false, true, address(gct.groupToken()));
+        emit MintingModeChanged(address(user.getUserAddress()), MintingMode.EveryoneCanMint, MintingMode.OnlyMembersCanMint);
+
+        user.gctSetOnlyMemberCanMint(gct.groupToken());
+
+        _setupGctMinting(user, gct, user.circlesToken(), 50, false);
+
+        try user.gctMint(gct.groupToken(), user.circlesToken(), 50) {
+            fail("Should have thrown.");
+        } catch Error(string memory reason) {
+            assertEq(reason, "Only members can mint");
+        }
+
+        _setupGctMinting(otherUser, gct, otherUser.circlesToken(), 50, true);
+        otherUser.gctMint(gct.groupToken(), otherUser.circlesToken(), 50);
+
+        user.discriminatorAddMember(gct.discriminator(), user.getUserAddress());
+        user.gctAddMyself(gct.groupToken());
+
+        _setupGctMinting(user, gct, user.circlesToken(), 50, true);
+        user.gctMint(gct.groupToken(), user.circlesToken(), 50);
+
+        user.discriminatorRemoveMember(gct.discriminator(), user.getUserAddress());
     }
 
+    function testEveryoneCanMint() external {
+        MockUser user = mockEnv.signup(50000000000000000000);
+        MockUser otherUser = mockEnv.signup(50000000000000000000);
+        GroupTokenAndDiscriminator gct = user.createSingleMemberGroupCurrency(MintingMode.EveryoneCanMint, user.getUserAddress(), true, 0);
 
+        // Transfer trusted collateral from 'user' to 'otherUser'
+        user.crcTransfer(user.circlesToken(), otherUser.getUserAddress(), 150);
+
+        // Try to mint using the previously transferred collateral -> expect success
+        _setupGctMinting(otherUser, gct, user.circlesToken(), 50, true);
+        otherUser.gctMint(gct.groupToken(), user.circlesToken(), 50);
+
+        // Try to mint using untrusted collateral -> expect error
+        _setupGctMinting(otherUser, gct, otherUser.circlesToken(), 50, false);
+        try otherUser.gctMint(gct.groupToken(), otherUser.circlesToken(), 50) {
+            fail("Should have thrown.");
+        } catch Error(string memory reason) {
+            assertEq(reason, "collateral owner not a member");
+        }
+
+        // Change minting mode to 'OnlyMembersCanMint'
+        vm.expectEmit(true, true, false, true, address(gct.groupToken()));
+        emit MintingModeChanged(address(user.getUserAddress()), MintingMode.EveryoneCanMint, MintingMode.OnlyMembersCanMint);
+
+        user.gctSetOnlyMemberCanMint(gct.groupToken());
+
+        // Try to mint using the previously transferred collateral -> expect error
+        _setupGctMinting(otherUser, gct, user.circlesToken(), 50, false);
+        try otherUser.gctMint(gct.groupToken(), user.circlesToken(), 50) {
+            fail("Should have thrown.");
+        } catch Error(string memory reason) {
+            assertEq(reason, "Only members can mint");
+        }
+
+        // Change minting mode back to 'EveryoneCanMint'
+        vm.expectEmit(true, true, false, true, address(gct.groupToken()));
+        emit MintingModeChanged(address(user.getUserAddress()), MintingMode.OnlyMembersCanMint, MintingMode.EveryoneCanMint);
+
+        user.gctSetEveryoneCanMint(gct.groupToken());
+
+        // Try to mint using the previously transferred collateral -> expect success
+        _setupGctMinting(otherUser, gct, user.circlesToken(), 50, true);
+        otherUser.gctMint(gct.groupToken(), user.circlesToken(), 50);
+    }
+
+    function testAddMember() external {
+        MockUser user = mockEnv.signup(50000000000000000000);
+        GroupTokenAndDiscriminator gct = user.createSingleMemberGroupCurrency(MintingMode.OnlyMembersCanMint, user.getUserAddress(), false, 0);
+
+        _setupGctMinting(user, gct, user.circlesToken(), 50, false);
+        try user.gctMint(gct.groupToken(), user.circlesToken(), 50) {
+            fail("Should have thrown.");
+        } catch Error(string memory reason) {
+            // User is qualified to be member but isn't yet trusted by the GCT and thus not a member.
+            assertEq(reason, "You're not yet trusted. Call 'addMember' first.");
+        }
+
+        vm.expectEmit(true, true, false, true, address(user.environment().hub()));
+        emit Trust(address(gct.groupToken()), user.getUserAddress(), 100);
+
+        vm.expectEmit(true, true, false, true, address(gct.groupToken()));
+        emit MemberAdded(user.getUserAddress());
+
+        gct.groupToken().addMember(user.getUserAddress());
+
+        _setupGctMinting(user, gct, user.circlesToken(), 50, true);
+        user.gctMint(gct.groupToken(), user.circlesToken(), 50);
+
+        try user.discriminatorAddMember(gct.discriminator(), address(0)) {
+            fail("Should have thrown.");
+        } catch Error(string memory reason) {
+            assertEq(reason, "member must be valid address");
+        }
+
+        try user.gctAddMember(gct.groupToken(), address(0)) {
+            fail("Should have thrown.");
+        } catch Error(string memory reason) {
+            assertEq(reason, "member must be valid address");
+        }
+    }
+
+    function testRemoveMember() external {
+        MockUser user = mockEnv.signup(50000000000000000000);
+        MockUser anyUser = mockEnv.signup(50000000000000000000);
+        GroupTokenAndDiscriminator gct = user.createSingleMemberGroupCurrency(MintingMode.OnlyMembersCanMint, user.getUserAddress(), true, 0);
+
+        _setupGctMinting(user, gct, user.circlesToken(), 50, true);
+        user.gctMint(gct.groupToken(), user.circlesToken(), 50);
+
+        vm.expectEmit(true, true, false, true, address(user.environment().hub()));
+        emit Trust(address(gct.groupToken()), user.getUserAddress(), 0);
+
+        vm.expectEmit(true, true, false, true, address(gct.groupToken()));
+        emit MemberRemoved(user.getUserAddress());
+
+        user.gctRemoveMyself(gct.groupToken());
+
+        _setupGctMinting(user, gct, user.circlesToken(), 50, false);
+        try user.gctMint(gct.groupToken(), user.circlesToken(), 50) {
+            fail("Should have thrown.");
+        } catch Error(string memory reason) {
+            assertEq(reason, "You're not yet trusted. Call 'addMember' first.");
+        }
+
+        try user.gctRemoveMember(gct.groupToken(), address(0)) {
+            fail("Should have thrown.");
+        } catch Error(string memory reason) {
+            assertEq(reason, "member must be valid address");
+        }
+
+        try anyUser.gctRemoveMember(gct.groupToken(), user.getUserAddress()) {
+            fail("Should have thrown.");
+        } catch Error(string memory reason) {
+            assertEq(reason, "Only members themself or the owner can remove members if they're still accepted by the discriminator.");
+        }
+    }
+
+    function testBurnGCT() external {
+        MockUser user = mockEnv.signup(50000000000000000000);
+        GroupTokenAndDiscriminator gct = user.createSingleMemberGroupCurrency(MintingMode.OnlyMembersCanMint, user.getUserAddress(), true, 0);
+
+        _setupGctMinting(user, gct, user.circlesToken(), 50, true);
+        user.gctMint(gct.groupToken(), user.circlesToken(), 50);
+
+        vm.expectEmit(true, true, false, true, address(gct.groupToken()));
+        emit Transfer(user.getUserAddress(), address(0), 50);
+
+        user.gctBurn(gct.groupToken(), 50);
+    }
+
+    function testTransferGCT() external {
+        MockUser user = mockEnv.signup(50000000000000000000);
+        MockUser otherUser = mockEnv.signup(50000000000000000000);
+        GroupTokenAndDiscriminator gct = user.createSingleMemberGroupCurrency(MintingMode.OnlyMembersCanMint, user.getUserAddress(), true, 0);
+
+        _setupGctMinting(user, gct, user.circlesToken(), 50, true);
+        user.gctMint(gct.groupToken(), user.circlesToken(), 50);
+
+        vm.expectEmit(true, true, false, true, address(gct.groupToken()));
+        emit Transfer(user.getUserAddress(), otherUser.getUserAddress(), 50);
+
+        user.gctTransfer(gct.groupToken(), otherUser.getUserAddress(), 50);
+    }
+
+    function testMemberCanRemoveThemselves() external {
+        MockUser user = mockEnv.signup(50000000000000000000);
+        MockUser otherUser = mockEnv.signup(50000000000000000000);
+        GroupTokenAndDiscriminator gct = user.createSingleMemberGroupCurrency(MintingMode.OnlyMembersCanMint, otherUser.getUserAddress(), true, 0);
+
+        _setupGctMinting(otherUser, gct, otherUser.circlesToken(), 50, true);
+        otherUser.gctMint(gct.groupToken(), otherUser.circlesToken(), 50);
+
+        vm.expectEmit(true, true, false, true, address(gct.groupToken()));
+        emit MemberRemoved(otherUser.getUserAddress());
+
+        otherUser.gctRemoveMyself(gct.groupToken());
+
+        _setupGctMinting(otherUser, gct, otherUser.circlesToken(), 50, false);
+        try otherUser.gctMint(gct.groupToken(), otherUser.circlesToken(), 50) {
+            fail("Should have thrown.");
+        } catch Error(string memory reason) {
+            assertEq(reason, "You're not yet trusted. Call 'addMember' first.");
+        }
+    }
+
+    function testOwnerCanRemoveAnyMember() external {
+        MockUser user = mockEnv.signup(50000000000000000000);
+        MockUser anyMember = mockEnv.signup(50000000000000000000);
+        GroupTokenAndDiscriminator gct = user.createSingleMemberGroupCurrency(MintingMode.OnlyMembersCanMint, anyMember.getUserAddress(), true, 0);
+
+        _setupGctMinting(anyMember, gct, anyMember.circlesToken(), 50, true);
+        anyMember.gctMint(gct.groupToken(), anyMember.circlesToken(), 50);
+
+        vm.expectEmit(true, true, false, true, address(user.environment().hub()));
+        emit Trust(address(gct.groupToken()), anyMember.getUserAddress(), 0);
+
+        vm.expectEmit(true, true, false, true, address(gct.groupToken()));
+        emit MemberRemoved(anyMember.getUserAddress());
+
+        user.gctRemoveMember(gct.groupToken(), anyMember.getUserAddress());
+
+        _setupGctMinting(anyMember, gct, anyMember.circlesToken(), 50, false);
+        try anyMember.gctMint(gct.groupToken(), anyMember.circlesToken(), 50) {
+            fail("Should have thrown.");
+        } catch Error(string memory reason) {
+            assertEq(reason, "You're not yet trusted. Call 'addMember' first.");
+        }
+    }
+
+    function testAnybodyCanRemoveTrustForDeniedMembers() external {
+        MockUser user = mockEnv.signup(50000000000000000000);
+        MockUser otherUser = mockEnv.signup(50000000000000000000);
+        MockUser anyUser = mockEnv.signup(50000000000000000000);
+        GroupTokenAndDiscriminator gct = user.createSingleMemberGroupCurrency(MintingMode.OnlyMembersCanMint, otherUser.getUserAddress(), true, 0);
+
+        _setupGctMinting(otherUser, gct, otherUser.circlesToken(), 50, true);
+        otherUser.gctMint(gct.groupToken(), otherUser.circlesToken(), 50);
+
+        user.discriminatorRemoveMember(gct.discriminator(), otherUser.getUserAddress());
+
+        vm.expectEmit(true, true, false, true, address(user.environment().hub()));
+        emit Trust(address(gct.groupToken()), otherUser.getUserAddress(), 0);
+
+        vm.expectEmit(true, true, false, true, address(gct.groupToken()));
+        emit MemberRemoved(otherUser.getUserAddress());
+
+        anyUser.gctRemoveMember(gct.groupToken(), otherUser.getUserAddress());
+
+        _setupGctMinting(otherUser, gct, otherUser.circlesToken(), 50, false);
+        try otherUser.gctMint(gct.groupToken(), otherUser.circlesToken(), 50) {
+            fail("Should have thrown.");
+        } catch Error(string memory reason) {
+            assertEq(reason, "Only members can mint");
+        }
+    }
 }
